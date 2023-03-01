@@ -157,4 +157,4 @@ model.fit(
     shuffle=False
 )
 
-model.save("premodel/model.h5")
+model.save("model.h5")
