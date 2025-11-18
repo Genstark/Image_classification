@@ -1,5 +1,9 @@
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.applications import vgg16
+from tensorflow.keras.layers import Activation, Dense, Dropout, BatchNormalization
+from tensorflow.keras.layers import MaxPool2D, Conv2D, Flatten
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
 class_object = ["bottle","car", "cat", "dog"]
 
@@ -7,154 +11,122 @@ train_path = "dataset/train/train"
 valid_path = "dataset/train/valid"
 test_path = "dataset/train/test"
 
-imgdata = ImageDataGenerator(
-                featurewise_center=False,
-                samplewise_center=False,
-                featurewise_std_normalization=False,
-                samplewise_std_normalization=False,
-                zca_whitening=False,
-                zca_epsilon=1e-6,
-                rotation_range=20,
-                width_shift_range=0.1,
-                height_shift_range=0.1,
-                brightness_range=None,
-                shear_range=0.1,
-                zoom_range=0.2,
-                channel_shift_range=0.,
-                fill_mode="nearest",
-                cval=0.,
-                horizontal_flip=True,
-                vertical_flip=False,
-                rescale=None,
-                preprocessing_function=None,
-                data_format=None,
-                validation_split=0.0,
-                dtype=None
+# -------------------------------------------------------------------------
+# ★ 1. Stronger augmentation
+# -------------------------------------------------------------------------
+train_gen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=25,
+    width_shift_range=0.15,
+    height_shift_range=0.15,
+    zoom_range=0.25,
+    shear_range=0.15,
+    horizontal_flip=True,
+    fill_mode="nearest"
 )
 
-imgerescale = ImageDataGenerator(rescale=1./255)
+valid_gen = ImageDataGenerator(rescale=1./255)
+test_gen  = ImageDataGenerator(rescale=1./255)
 
-train_batch = imgdata.flow_from_directory(
-                            directory=train_path,
-                            target_size=(224,224),
-                            color_mode="rgb",
-                            classes=class_object,
-                            class_mode="categorical",
-                            batch_size=16,
-                            shuffle=True,
-                            seed=None,
-                            save_to_dir=None,
-                            save_prefix=None,
-                            save_format=None,
-                            follow_links=None,
-                            subset=None,
-                            interpolation="nearest",
+train_batch = train_gen.flow_from_directory(
+    directory=train_path,
+    target_size=(224,224),
+    classes=class_object,
+    batch_size=16,
+    class_mode="categorical"
 )
 
-valid_batch = imgerescale.flow_from_directory(
-                            directory=valid_path,
-                            target_size=(224,224),
-                            color_mode="rgb",
-                            classes=class_object,
-                            class_mode="categorical",
-                            batch_size=16,
-                            shuffle=True,
-                            seed=None,
-                            save_to_dir=None,
-                            save_prefix=None,
-                            save_format=None,
-                            follow_links=False,
-                            subset=None,
-                            interpolation="nearest"
+valid_batch = valid_gen.flow_from_directory(
+    directory=valid_path,
+    target_size=(224,224),
+    classes=class_object,
+    batch_size=16,
+    class_mode="categorical"
 )
 
-test_batch = imgerescale.flow_from_directory(
-                            directory=test_path,
-                            target_size=(224,224),
-                            color_mode="rgb",
-                            classes=class_object,
-                            class_mode="categorical",
-                            batch_size=16,
-                            shuffle=False,
-                            seed=100,
-                            save_to_dir=None,
-                            save_prefix=None,
-                            save_format=None,
-                            follow_links=False,
-                            subset=None,
-                            interpolation="nearest"
-)
-
-
-from tensorflow.keras.layers import Activation, Dense, Dropout 
-from tensorflow.keras.layers import BatchNormalization, MaxPool2D, Conv2D, Flatten
-from tensorflow.keras.layers import GlobalAveragePooling2D
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.models import Sequential
-
-
-model = Sequential()
-
-model.add(Conv2D(filters=32, kernel_size=(2,2), padding="same", input_shape=(224,224,3)))
-model.add(Activation("relu")) 
-
-model.add(Conv2D(filters=64, kernel_size=(2,2), padding="same"))
-model.add(Activation("relu"))
-model.add(MaxPool2D(pool_size=(2,2), strides=2))
-
-model.add(Conv2D(filters=128, kernel_size=(2,2), padding="same"))
-model.add(Activation("relu"))
-model.add(MaxPool2D(pool_size=(2,2), strides=2))
-
-model.add(Conv2D(filters=128, kernel_size=(2,2), padding="same"))
-model.add(Activation("relu"))
-model.add(MaxPool2D(pool_size=(2,2), strides=2))
-
-model.add(Conv2D(filters=256, kernel_size=(2,2), padding="same"))
-model.add(Activation("relu"))
-model.add(MaxPool2D(pool_size=(2,2), strides=2))
-
-model.add(Conv2D(filters=256, kernel_size=(2,2), padding="same"))
-model.add(Activation("relu"))
-model.add(MaxPool2D(pool_size=(2,2), strides=2))
-
-model.add(Conv2D(filters=512, kernel_size=(2,2), padding="same"))
-model.add(Activation("relu"))
-model.add(BatchNormalization(axis=1))
-model.add(Dropout(0.2))
-
-model.add(Conv2D(filters=512, kernel_size=(2,2), padding="same"))
-model.add(Activation("relu"))
-model.add(BatchNormalization(axis=1))
-model.add(Dropout(0.1))
-
-model.add(Conv2D(filters=1024, kernel_size=(2,2), padding="same"))
-model.add(Activation("relu"))
-model.add(BatchNormalization(axis=1))
-
-model.add(Flatten())
-
-model.add(Dense(500))
-model.add(Activation("relu"))
-
-model.add(Dense(100))
-model.add(Activation("relu"))
-
-model.add(Dense(units=len(class_object)))
-model.add(Activation("softmax"))
-
-model.compile(
-    optimizer=Adam(learning_rate=0.0001), 
-    loss="categorical_crossentropy", 
-    metrics=["accuracy"]
-)
-
-model.fit(
-    x=train_batch, 
-    validation_data=valid_batch,
-    epochs=4,
-    verbose=1,
+test_batch = test_gen.flow_from_directory(
+    directory=test_path,
+    target_size=(224,224),
+    classes=class_object,
+    batch_size=16,
+    class_mode="categorical",
     shuffle=False
 )
 
+# -------------------------------------------------------------------------
+# ★ 2. Much improved CNN architecture
+# -------------------------------------------------------------------------
+model = Sequential()
+
+# Block 1
+model.add(Conv2D(32, (3,3), padding="same", activation="relu", input_shape=(224,224,3)))
+model.add(BatchNormalization())
+model.add(Conv2D(32, (3,3), padding="same", activation="relu"))
+model.add(BatchNormalization())
+model.add(MaxPool2D(2,2))
+model.add(Dropout(0.25))
+
+# Block 2
+model.add(Conv2D(64, (3,3), padding="same", activation="relu"))
+model.add(BatchNormalization())
+model.add(Conv2D(64, (3,3), padding="same", activation="relu"))
+model.add(BatchNormalization())
+model.add(MaxPool2D(2,2))
+model.add(Dropout(0.25))
+
+# Block 3
+model.add(Conv2D(128, (3,3), padding="same", activation="relu"))
+model.add(BatchNormalization())
+model.add(Conv2D(128, (3,3), padding="same", activation="relu"))
+model.add(BatchNormalization())
+model.add(MaxPool2D(2,2))
+model.add(Dropout(0.3))
+
+# Block 4
+model.add(Conv2D(256, (3,3), padding="same", activation="relu"))
+model.add(BatchNormalization())
+model.add(Conv2D(256, (3,3), padding="same", activation="relu"))
+model.add(BatchNormalization())
+model.add(MaxPool2D(2,2))
+model.add(Dropout(0.4))
+
+# Dense Head
+model.add(Flatten())
+model.add(Dense(512, activation="relu"))
+model.add(Dropout(0.5))
+model.add(Dense(128, activation="relu"))
+model.add(Dropout(0.3))
+model.add(Dense(len(class_object), activation="softmax"))
+
+# -------------------------------------------------------------------------
+# ★ 3. Compile
+# -------------------------------------------------------------------------
+model.compile(
+    optimizer=Adam(learning_rate=1e-4),
+    loss="categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+# -------------------------------------------------------------------------
+# ★ 4. Callbacks to improve accuracy
+# -------------------------------------------------------------------------
+callbacks = [
+    EarlyStopping(patience=6, restore_best_weights=True),
+    ReduceLROnPlateau(factor=0.3, patience=3, min_lr=1e-6)
+]
+
+# -------------------------------------------------------------------------
+# ★ 5. Train
+# -------------------------------------------------------------------------
+model.fit(
+    x=train_batch, 
+    validation_data=valid_batch,
+    epochs=30,
+    callbacks=callbacks,
+    verbose=1
+)
+
+# -------------------------------------------------------------------------
+# ★ 6. Save model
+# -------------------------------------------------------------------------
 model.save("model.h5")
